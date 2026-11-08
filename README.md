@@ -30,3 +30,17 @@ What happens in the video:
 2. The other letters shake a little while the old **O** and **N** float up and fade away. The **ring** and the **chain N** rise into place from below, and the diamond sparkles.
 3. The perfume bottle enters from the right side of the screen. It spins on itself while it circles behind the logo, then lands in its place next to the K.
 4. The bottle's pump presses down and the gold mist sprays out behind the name. The diamond sparkles once more and the final logo holds on screen.
+
+## Product images
+`kronos-guild-logo-dark-transparent.png` is the logo with a transparent background. The watch outline is light, so the logo works on dark backgrounds.
+
+### CURREN 8443 — Chronographe Rouge
+Product images for kronosguild.shop, in French, 1500×1500 JPG. They are in `produits/curren-8443-rouge/`.
+
+| File | Content |
+| --- | --- |
+| `01-curren-8443-rouge-couverture.jpg` | Cover: logo, title, main features |
+| `02-curren-8443-rouge-caracteristiques.jpg` | Features with pointers: Hardlex glass, chronograph, luminous hands, date |
+| `03-curren-8443-rouge-fiche-technique.jpg` | Full spec sheet |
+| `04-curren-8443-rouge-details.jpg` | Stainless steel case back, textured strap, adjustable strap |
+| `05-curren-8443-rouge-photo-principale.jpg` | Clean photo with no text, for the main thumbnail or Google Shopping |
