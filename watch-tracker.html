@@ -112,7 +112,8 @@ label.chk input{width:auto;margin:0}
 /* ---------- storage ---------- */
 const KEY = 'watchTracker.v1';
 const normalize = d => ({
-  settings: Object.assign({currency:'$', lowStock:1, lastBackup:null, monthlyGoal:0}, d.settings || {}),
+  settings: Object.assign({currency:'DA', lowStock:1, lastBackup:null, monthlyGoal:0},
+    d.settings && d.settings.currency === '$' && !d.settings.currencySet ? {...d.settings, currency:'DA'} : d.settings || {}),
   purchases: d.purchases || [], sales: d.sales || [], expenses: d.expenses || [], returns: d.returns || []
 });
 function load(){ try { return normalize(JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e){ return normalize({}); } }
@@ -624,7 +625,7 @@ document.addEventListener('submit', e => {
     db.settings.monthlyGoal = Math.max(0, +d.monthlyGoal || 0); ui.goalEdit = false;
   }
   else if (kind === 'settings'){
-    db.settings.currency = d.currency || '$'; db.settings.lowStock = Math.max(0, Math.floor(+d.lowStock) || 0);
+    db.settings.currency = d.currency || 'DA'; db.settings.currencySet = true; db.settings.lowStock = Math.max(0, Math.floor(+d.lowStock) || 0);
     db.settings.monthlyGoal = Math.max(0, +d.monthlyGoal || 0);
   }
   ui.edit = null; save(); render();
