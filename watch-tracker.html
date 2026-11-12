@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watch Tracker</title>
+<style>
+:root{
+  --bg:#f5f4f0; --card:#ffffff; --ink:#1c1b19; --muted:#6f6b63; --line:#e3e0d8;
+  --accent:#9a6b1f; --accent-ink:#ffffff; --good:#1f7a4d; --bad:#b3372f; --blue:#2f5f9a; --soft:#f0ece2;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141412; --card:#1e1d1a; --ink:#f1eee6; --muted:#a09a8d; --line:#34322d;
+    --accent:#d3a04a; --accent-ink:#1a1608; --good:#5fc48f; --bad:#ee7b72; --blue:#7fabe6; --soft:#28261f; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:20px;padding:10px 20px;flex-wrap:wrap}
+.logo{font-weight:700;font-size:17px;letter-spacing:.02em;white-space:nowrap}
+.logo span{color:var(--accent)}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{background:none;border:0;color:var(--muted);padding:8px 12px;border-radius:8px;font:inherit;cursor:pointer}
+nav button:hover{background:var(--soft);color:var(--ink)}
+nav button.on{background:var(--accent);color:var(--accent-ink);font-weight:600}
+main{max-width:1150px;margin:0 auto;padding:20px 16px 60px}
+h2{font-size:20px;margin:0 0 14px}
+h3{font-size:15px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.grid{display:grid;gap:12px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(165px,1fr));margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.kpi .v{font-size:23px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .d{font-size:12px;color:var(--muted);margin-top:2px}
+.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
+.good{color:var(--good)} .bad{color:var(--bad)} .muted{color:var(--muted)}
+form.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+label{display:block;font-size:12px;color:var(--muted)}
+input,select{width:100%;margin-top:3px;padding:8px 9px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);color:var(--ink);font:inherit}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+button.b{padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;cursor:pointer}
+button.b:hover{background:var(--soft)}
+button.p{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.p:hover{filter:brightness(1.08);background:var(--accent)}
+button.x{border:0;background:none;color:var(--muted);cursor:pointer;padding:3px 6px;border-radius:6px;font:inherit;font-size:13px}
+button.x:hover{background:var(--soft);color:var(--ink)}
+button.x.del:hover{color:var(--bad)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+  padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--card);flex-wrap:wrap}
+.seg button{border:0;background:none;color:var(--muted);padding:7px 13px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--bg);font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.bar{height:7px;border-radius:4px;background:var(--soft);min-width:70px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;background:var(--soft);color:var(--muted)}
+.tag.warn{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.note{background:var(--soft);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px;
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.empty{color:var(--muted);padding:18px 4px;text-align:center}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+svg text{fill:var(--muted);font-size:11px}
+.hint{font-size:13px;color:var(--muted);margin-top:10px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⌚ Watch<span>Tracker</span></div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"></main>
+
+<script>
+/* ---------- storage ---------- */
+const KEY = 'watchTracker.v1';
+const normalize = d => ({
+  settings: Object.assign({currency:'$', lowStock:1, lastBackup:null}, d.settings || {}),
+  purchases: d.purchases || [], sales: d.sales || [], expenses: d.expenses || []
+});
+function load(){ try { return normalize(JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e){ return normalize({}); } }
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch(e){ alert('Could not save your data in this browser. Export a backup from Settings now.'); }
+}
+let db = load();
+const ui = {tab:'dashboard', range:30, edit:null, q:''};
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const iso = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const today = () => iso(new Date());
+const addDays = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return iso(d); };
+const daysBetween = (a,b) => Math.round((parse(b) - parse(a)) / 864e5);
+const fmtDate = s => parse(s).toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'});
+const num = v => (Math.round(v*100)/100).toLocaleString(undefined, {maximumFractionDigits:2});
+const money = v => (v < 0 ? '−' : '') + num(Math.abs(v)) + ' ' + esc(db.settings.currency);
+const pct = v => isFinite(v) ? (Math.round(v*10)/10) + '%' : '–';
+const mkey = (brand, model) => (brand.trim() + '|' + model.trim()).toLowerCase();
+const name = x => esc((x.brand ? x.brand + ' ' : '') + x.model);
+const EXP_CATS = ['Shipping','Advertising','Packaging','Platform / payment fees','Repairs & parts','Customs & taxes','Tools & equipment','Other'];
+const CHANNELS = ['Instagram','Facebook','WhatsApp','Website','TikTok','In person'];
+
+/* ---------- business logic ---------- */
+function soldMap(){ const m = {}; for (const s of db.sales) for (const a of s.allocs) m[a.lotId] = (m[a.lotId]||0) + a.qty; return m; }
+function lotMap(){ return Object.fromEntries(db.purchases.map(p => [p.id, p])); }
+function saleCost(s, lots){ return s.allocs.reduce((t,a) => t + a.qty * (lots[a.lotId] ? lots[a.lotId].unitCost : 0), 0); }
+function stock(){
+  const sold = soldMap(), m = new Map();
+  for (const p of db.purchases){
+    const k = mkey(p.brand, p.model);
+    let e = m.get(k);
+    if (!e){ e = {key:k, brand:p.brand, model:p.model, qty:0, value:0, bought:0, oldest:null}; m.set(k, e); }
+    const rem = p.qty - (sold[p.id]||0);
+    e.bought += p.qty; e.qty += rem; e.value += rem * p.unitCost;
+    if (rem > 0 && (!e.oldest || p.date < e.oldest)) e.oldest = p.date;
+  }
+  return [...m.values()].sort((a,b) => name(a).localeCompare(name(b)));
+}
+function stats(from, to){
+  const lots = lotMap(), inR = x => x.date >= from && x.date <= to;
+  const r = {rev:0, cogs:0, units:0, exp:0, buy:0, orders:0};
+  for (const s of db.sales) if (inR(s)){ r.rev += s.qty*s.unitPrice; r.cogs += saleCost(s,lots); r.units += s.qty; r.orders++; }
+  for (const e of db.expenses) if (inR(e)) r.exp += e.amount;
+  for (const p of db.purchases) if (inR(p)) r.buy += p.qty*p.unitCost;
+  r.gross = r.rev - r.cogs; r.net = r.gross - r.exp;
+  return r;
+}
+function earliest(){
+  const all = [...db.purchases, ...db.sales, ...db.expenses].map(x => x.date).sort();
+  return all[0] || today();
+}
+function buckets(from, to, range){
+  const out = [];
+  if (range && range <= 31){
+    for (let d = from; d <= to; d = addDays(d,1))
+      out.push({from:d, to:d, label: parse(d).toLocaleDateString(undefined,{day:'numeric',month:'short'})});
+  } else if (range && range <= 100){
+    for (let d = from; d <= to; d = addDays(d,7)){
+      const e = addDays(d,6) > to ? to : addDays(d,6);
+      out.push({from:d, to:e, label: parse(d).toLocaleDateString(undefined,{day:'numeric',month:'short'})});
+    }
+  } else {
+    let d = parse(from);
+    while (iso(d) <= to){
+      const end = new Date(d.getFullYear(), d.getMonth()+1, 0);
+      out.push({from: iso(d), to: iso(end) > to ? to : iso(end),
+        label: d.toLocaleDateString(undefined,{month:'short', year:'2-digit'})});
+      d = new Date(d.getFullYear(), d.getMonth()+1, 1);
+    }
+  }
+  return out;
+}
+
+/* ---------- views ---------- */
+const TABS = [['dashboard','Dashboard'],['stock','Stock & Purchases'],['sales','Sales'],['expenses','Expenses'],['settings','Settings & Backup']];
+function render(){
+  $('#nav').innerHTML = TABS.map(([k,l]) => `<button data-act="tab" data-v="${k}" class="${ui.tab===k?'on':''}">${l}</button>`).join('');
+  $('#app').innerHTML = ({dashboard:vDashboard, stock:vStock, sales:vSales, expenses:vExpenses, settings:vSettings})[ui.tab]();
+  const p = $('#salePreview'); if (p) updateSalePreview();
+}
+
+function delta(cur, prev){
+  if (!prev) return '';
+  const d = (cur - prev) / Math.abs(prev) * 100;
+  return `<span class="${d>=0?'good':'bad'}">${d>=0?'▲':'▼'} ${pct(Math.abs(d))}</span> vs previous period`;
+}
+
+function chart(bs){
+  const lots = lotMap();
+  const data = bs.map(b => { const s = stats(b.from, b.to); return {label:b.label, rev:s.rev, net:s.net}; });
+  const W = 900, H = 250, L = 56, R = 10, T = 12, B = 26, pw = W-L-R, ph = H-T-B;
+  let max = Math.max(0, ...data.map(d => Math.max(d.rev, d.net))), min = Math.min(0, ...data.map(d => d.net));
+  if (max === 0 && min === 0) return '<div class="empty">No sales or expenses in this period yet.</div>';
+  const y = v => T + (max - v) / (max - min) * ph;
+  const bw = pw / data.length, step = Math.ceil(data.length / 12);
+  let g = '';
+  for (const v of [max, (max+min)/2, min, 0]) g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${num(Math.round(v))}</text>`;
+  data.forEach((d,i) => {
+    const x = L + i*bw, w = Math.max(1.5, bw*0.36);
+    const bar = (v, off, fill, lab) => v === 0 ? '' :
+      `<rect x="${x + bw*off}" y="${Math.min(y(v), y(0))}" width="${w}" height="${Math.max(1, Math.abs(y(v)-y(0)))}" rx="2" fill="${fill}"><title>${esc(d.label)} — ${lab}: ${num(v)}</title></rect>`;
+    g += bar(d.rev, 0.12, 'var(--blue)', 'Revenue') + bar(d.net, 0.52, d.net >= 0 ? 'var(--good)' : 'var(--bad)', 'Net profit');
+    if (i % step === 0) g += `<text x="${x + bw/2}" y="${H-8}" text-anchor="middle">${esc(d.label)}</text>`;
+  });
+  return `<div class="legend"><span><i style="background:var(--blue)"></i>Revenue</span><span><i style="background:var(--good)"></i>Net profit</span><span><i style="background:var(--bad)"></i>Loss</span></div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Revenue and profit chart">${g}</svg>`;
+}
+
+function vDashboard(){
+  const to = today(), r = ui.range;
+  const from = r ? addDays(to, -(r-1)) : earliest();
+  const s = stats(from, to), prev = r ? stats(addDays(from,-r), addDays(from,-1)) : null;
+  const st = stock(), lots = lotMap();
+  const stockUnits = st.reduce((t,x) => t+x.qty, 0), stockValue = st.reduce((t,x) => t+x.value, 0);
+  const hasData = db.purchases.length || db.sales.length || db.expenses.length;
+
+  // best sellers
+  const bm = new Map();
+  for (const x of db.sales) if (x.date >= from && x.date <= to){
+    const k = mkey(x.brand, x.model);
+    const e = bm.get(k) || {brand:x.brand, model:x.model, units:0, rev:0, cost:0};
+    e.units += x.qty; e.rev += x.qty*x.unitPrice; e.cost += saleCost(x, lots); bm.set(k, e);
+  }
+  const best = [...bm.values()].sort((a,b) => b.units - a.units || b.rev - a.rev).slice(0,10);
+  const topU = best[0] ? best[0].units : 1;
+
+  // expenses by category
+  const em = {};
+  for (const e of db.expenses) if (e.date >= from && e.date <= to) em[e.category] = (em[e.category]||0) + e.amount;
+  const exps = Object.entries(em).sort((a,b) => b[1]-a[1]);
+
+  // alerts
+  const recent = new Set(db.sales.filter(x => x.date >= addDays(to,-90)).map(x => mkey(x.brand,x.model)));
+  const low = st.filter(x => x.qty <= db.settings.lowStock && (x.qty > 0 || recent.has(x.key)));
+  const slow = st.filter(x => x.qty > 0 && x.oldest && daysBetween(x.oldest, to) >= 60)
+                 .sort((a,b) => a.oldest.localeCompare(b.oldest));
+
+  const lb = db.settings.lastBackup;
+  const backupNote = hasData && (!lb || daysBetween(lb, to) >= 7)
+    ? `<div class="note"><span>💾 ${lb ? 'Your last backup was ' + daysBetween(lb,to) + ' days ago.' : 'You have not made a backup yet.'} Your data lives only in this browser — save a backup file regularly.</span><button class="b p" data-act="backup">Backup now</button></div>` : '';
+
+  const ranges = [[7,'Week'],[30,'Month'],[91,'3 months'],[365,'Year'],[0,'All time']];
+  return `
+  ${backupNote}
+  <div class="row"><h2 style="margin:0">Dashboard</h2>
+    <div class="seg">${ranges.map(([v,l]) => `<button data-act="range" data-v="${v}" class="${r===v?'on':''}">${l}</button>`).join('')}</div></div>
+  <div class="grid kpis">
+    <div class="kpi"><div class="l">Revenue</div><div class="v">${money(s.rev)}</div><div class="d">${prev ? delta(s.rev, prev.rev) : ''}</div></div>
+    <div class="kpi"><div class="l">Net profit</div><div class="v ${s.net>=0?'good':'bad'}">${money(s.net)}</div><div class="d">${prev ? delta(s.net, prev.net) : ''}</div></div>
+    <div class="kpi"><div class="l">Watches sold</div><div class="v">${s.units}</div><div class="d">${s.units ? 'avg. ' + money(s.rev/s.units) + ' each' : ''}</div></div>
+    <div class="kpi"><div class="l">Profit on watches</div><div class="v">${money(s.gross)}</div><div class="d">margin ${s.rev ? pct(s.gross/s.rev*100) : '–'} (before expenses)</div></div>
+    <div class="kpi"><div class="l">Extra expenses</div><div class="v">${money(s.exp)}</div></div>
+    <div class="kpi"><div class="l">Spent on new stock</div><div class="v">${money(s.buy)}</div></div>
+    <div class="kpi"><div class="l">In stock now</div><div class="v">${stockUnits}</div><div class="d">worth ${money(stockValue)} at cost</div></div>
+  </div>
+  <div class="card"><h3>Revenue &amp; net profit</h3>${chart(buckets(from, to, r))}</div>
+  <div class="grid two">
+    <div class="card"><h3>🏆 Best sellers</h3>
+      ${best.length ? `<div class="scroll"><table><tr><th>#</th><th>Model</th><th class="n">Sold</th><th></th><th class="n">Revenue</th><th class="n">Profit</th></tr>
+      ${best.map((b,i) => `<tr><td>${i+1}</td><td>${name(b)}</td><td class="n">${b.units}</td>
+        <td><div class="bar"><i style="width:${b.units/topU*100}%"></i></div></td>
+        <td class="n">${money(b.rev)}</td><td class="n ${b.rev-b.cost>=0?'good':'bad'}">${money(b.rev-b.cost)}</td></tr>`).join('')}</table></div>`
+      : '<div class="empty">No sales in this period.</div>'}
+    </div>
+    <div class="card"><h3>Expenses by category</h3>
+      ${exps.length ? `<table>${exps.map(([c,v]) => `<tr><td>${esc(c)}</td><td><div class="bar"><i style="width:${v/exps[0][1]*100}%"></i></div></td><td class="n">${money(v)}</td></tr>`).join('')}</table>`
+      : '<div class="empty">No expenses in this period.</div>'}
+    </div>
+    <div class="card"><h3>⚠️ Low stock — time to reorder?</h3>
+      ${low.length ? `<table>${low.map(x => `<tr><td>${name(x)}</td><td class="n"><span class="tag ${x.qty===0?'warn':''}">${x.qty===0?'Sold out':x.qty+' left'}</span></td></tr>`).join('')}</table>`
+      : '<div class="empty">Nothing running low.</div>'}
+    </div>
+    <div class="card"><h3>🐢 Slow movers (in stock 60+ days)</h3>
+      ${slow.length ? `<table>${slow.map(x => `<tr><td>${name(x)}</td><td class="n">${x.qty} unit${x.qty>1?'s':''}</td><td class="n muted">${daysBetween(x.oldest,to)} days</td></tr>`).join('')}</table>`
+      : '<div class="empty">No watches have been sitting too long.</div>'}
+    </div>
+  </div>`;
+}
+
+function dl(id, values){ return `<datalist id="${id}">${[...new Set(values.filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('')}</datalist>`; }
+function search(placeholder){ return `<input type="search" id="q" placeholder="${placeholder}" value="${esc(ui.q)}" style="max-width:240px;margin:0">`; }
+const match = (...f) => !ui.q || f.join(' ').toLowerCase().includes(ui.q.toLowerCase());
+
+function vStock(){
+  const ed = ui.edit && ui.edit.type === 'purchase' ? db.purchases.find(p => p.id === ui.edit.id) : null;
+  const sold = soldMap(), st = stock().filter(x => x.qty > 0);
+  const rows = db.purchases.filter(p => match(p.brand, p.model, p.supplier, p.note)).sort((a,b) => b.date.localeCompare(a.date));
+  return `
+  <h2>Stock &amp; Purchases</h2>
+  <div class="card"><h3>${ed ? 'Edit purchase' : 'Add watches you bought'}</h3>
+    <form class="f" data-form="purchase">
+      <label>Date<input type="date" name="date" required value="${ed ? ed.date : today()}"></label>
+      <label>Brand<input name="brand" list="brands" placeholder="e.g. Casio" value="${esc(ed?.brand)}"></label>
+      <label>Model<input name="model" list="models" required placeholder="e.g. F-91W" value="${esc(ed?.model)}"></label>
+      <label>Quantity<input type="number" name="qty" min="1" step="1" required value="${ed ? ed.qty : 1}"></label>
+      <label>Price paid per watch<input type="number" name="unitCost" min="0" step="any" required value="${ed ? ed.unitCost : ''}"></label>
+      <label>Supplier (optional)<input name="supplier" list="suppliers" value="${esc(ed?.supplier)}"></label>
+      <label>Note (optional)<input name="note" value="${esc(ed?.note)}"></label>
+      <div class="btns"><button class="b p">${ed ? 'Save changes' : 'Add to stock'}</button>${ed ? '<button type="button" class="b" data-act="cancel">Cancel</button>' : ''}</div>
+    </form>
+    ${dl('brands', db.purchases.map(p => p.brand))}${dl('models', db.purchases.map(p => p.model))}${dl('suppliers', db.purchases.map(p => p.supplier))}
+  </div>
+  <div class="card"><h3>Currently in stock</h3>
+    ${st.length ? `<div class="scroll"><table><tr><th>Model</th><th class="n">In stock</th><th class="n">Avg. cost</th><th class="n">Stock value</th><th class="n">In stock since</th></tr>
+    ${st.map(x => `<tr><td>${name(x)}</td><td class="n">${x.qty}</td><td class="n">${money(x.value/x.qty)}</td><td class="n">${money(x.value)}</td><td class="n muted">${fmtDate(x.oldest)}</td></tr>`).join('')}</table></div>`
+    : '<div class="empty">Your stock is empty. Add your first purchase above.</div>'}
+  </div>
+  <div class="card"><div class="row"><h3 style="margin:0">Purchase history</h3>${search('Search purchases…')}</div>
+    ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Qty</th><th class="n">Unit cost</th><th class="n">Total</th><th class="n">Left</th><th>Supplier / note</th><th></th></tr>
+    ${rows.map(p => `<tr><td>${fmtDate(p.date)}</td><td>${name(p)}</td><td class="n">${p.qty}</td><td class="n">${money(p.unitCost)}</td><td class="n">${money(p.qty*p.unitCost)}</td>
+      <td class="n">${p.qty-(sold[p.id]||0)}</td><td class="muted">${esc([p.supplier,p.note].filter(Boolean).join(' · '))}</td>
+      <td class="n"><button class="x" data-act="edit" data-type="purchase" data-id="${p.id}">Edit</button><button class="x del" data-act="del" data-type="purchase" data-id="${p.id}">Delete</button></td></tr>`).join('')}</table></div>`
+    : '<div class="empty">No purchases found.</div>'}
+  </div>`;
+}
+
+function vSales(){
+  const ed = ui.edit && ui.edit.type === 'sale' ? db.sales.find(s => s.id === ui.edit.id) : null;
+  const st = stock().filter(x => x.qty > 0), lots = lotMap();
+  const rows = db.sales.filter(s => match(s.brand, s.model, s.channel, s.customer, s.note)).sort((a,b) => b.date.localeCompare(a.date));
+  const form = ed || st.length ? `
+    <form class="f" data-form="sale">
+      <label>Date<input type="date" name="date" required value="${ed ? ed.date : today()}"></label>
+      <label>Watch${ed ? `<input disabled value="${name(ed)}">` :
+        `<select name="key" required id="saleKey">${st.map(x => `<option value="${esc(x.key)}" data-qty="${x.qty}" data-cost="${x.value/x.qty}">${name(x)} — ${x.qty} in stock</option>`).join('')}</select>`}</label>
+      <label>Quantity<input type="number" name="qty" id="saleQty" min="1" step="1" required value="${ed ? ed.qty : 1}" ${ed ? 'disabled' : ''}></label>
+      <label>Sold price per watch<input type="number" name="unitPrice" id="salePrice" min="0" step="any" required value="${ed ? ed.unitPrice : ''}"></label>
+      <label>Sold via (optional)<input name="channel" list="channels" value="${esc(ed?.channel)}"></label>
+      <label>Customer (optional)<input name="customer" list="customers" value="${esc(ed?.customer)}"></label>
+      <label>Note (optional)<input name="note" value="${esc(ed?.note)}"></label>
+      <div class="btns"><button class="b p">${ed ? 'Save changes' : 'Record sale'}</button>${ed ? '<button type="button" class="b" data-act="cancel">Cancel</button>' : ''}</div>
+    </form>
+    ${ed ? '<div class="hint">To change the watch or quantity, delete this sale and record it again.</div>' : '<div class="hint" id="salePreview"></div>'}
+    ${dl('channels', [...CHANNELS, ...db.sales.map(s => s.channel)])}${dl('customers', db.sales.map(s => s.customer))}`
+    : '<div class="empty">Nothing in stock to sell. Add a purchase first in “Stock &amp; Purchases”.</div>';
+  return `
+  <h2>Sales</h2>
+  <div class="card"><h3>${ed ? 'Edit sale' : 'Record a sale'}</h3>${form}</div>
+  <div class="card"><div class="row"><h3 style="margin:0">Sales history</h3>${search('Search sales…')}</div>
+    ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Qty</th><th class="n">Sold at</th><th class="n">Total</th><th class="n">Profit</th><th>Via / customer / note</th><th></th></tr>
+    ${rows.map(s => { const pr = s.qty*s.unitPrice - saleCost(s,lots); return `<tr><td>${fmtDate(s.date)}</td><td>${name(s)}</td><td class="n">${s.qty}</td><td class="n">${money(s.unitPrice)}</td><td class="n">${money(s.qty*s.unitPrice)}</td>
+      <td class="n ${pr>=0?'good':'bad'}">${money(pr)}</td><td class="muted">${esc([s.channel,s.customer,s.note].filter(Boolean).join(' · '))}</td>
+      <td class="n"><button class="x" data-act="edit" data-type="sale" data-id="${s.id}">Edit</button><button class="x del" data-act="del" data-type="sale" data-id="${s.id}">Delete</button></td></tr>`; }).join('')}</table></div>`
+    : '<div class="empty">No sales found.</div>'}
+  </div>`;
+}
+function updateSalePreview(){
+  const sel = $('#saleKey'), out = $('#salePreview'); if (!sel || !out) return;
+  const o = sel.selectedOptions[0]; if (!o) return;
+  const cost = +o.dataset.cost, max = +o.dataset.qty, q = +$('#saleQty').value || 0, p = +$('#salePrice').value;
+  $('#saleQty').max = max;
+  let t = `You paid about <b>${money(cost)}</b> per watch.`;
+  if ($('#salePrice').value !== '' && q > 0){
+    const pr = (p - cost) * q;
+    t += ` Profit on this sale: <b class="${pr>=0?'good':'bad'}">${money(pr)}</b>${p ? ' (' + pct((p-cost)/p*100) + ' margin)' : ''}.`;
+  }
+  out.innerHTML = t;
+}
+
+function vExpenses(){
+  const ed = ui.edit && ui.edit.type === 'expense' ? db.expenses.find(e => e.id === ui.edit.id) : null;
+  const rows = db.expenses.filter(e => match(e.category, e.note)).sort((a,b) => b.date.localeCompare(a.date));
+  return `
+  <h2>Extra expenses</h2>
+  <div class="card"><h3>${ed ? 'Edit expense' : 'Add an expense'}</h3>
+    <form class="f" data-form="expense">
+      <label>Date<input type="date" name="date" required value="${ed ? ed.date : today()}"></label>
+      <label>Category<input name="category" list="cats" required placeholder="Choose or type" value="${esc(ed?.category)}"></label>
+      <label>Amount<input type="number" name="amount" min="0" step="any" required value="${ed ? ed.amount : ''}"></label>
+      <label>Note (optional)<input name="note" value="${esc(ed?.note)}"></label>
+      <div class="btns"><button class="b p">${ed ? 'Save changes' : 'Add expense'}</button>${ed ? '<button type="button" class="b" data-act="cancel">Cancel</button>' : ''}</div>
+    </form>${dl('cats', [...EXP_CATS, ...db.expenses.map(e => e.category)])}
+  </div>
+  <div class="card"><div class="row"><h3 style="margin:0">Expense history</h3>${search('Search expenses…')}</div>
+    ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Category</th><th class="n">Amount</th><th>Note</th><th></th></tr>
+    ${rows.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.category)}</td><td class="n">${money(e.amount)}</td><td class="muted">${esc(e.note)}</td>
+      <td class="n"><button class="x" data-act="edit" data-type="expense" data-id="${e.id}">Edit</button><button class="x del" data-act="del" data-type="expense" data-id="${e.id}">Delete</button></td></tr>`).join('')}</table></div>`
+    : '<div class="empty">No expenses found.</div>'}
+  </div>`;
+}
+
+function vSettings(){
+  const lb = db.settings.lastBackup;
+  return `
+  <h2>Settings &amp; Backup</h2>
+  <div class="card"><h3>Preferences</h3>
+    <form class="f" data-form="settings">
+      <label>Currency symbol<input name="currency" required maxlength="6" value="${esc(db.settings.currency)}"></label>
+      <label>Low-stock alert when units left ≤<input type="number" name="lowStock" min="0" step="1" required value="${db.settings.lowStock}"></label>
+      <div><button class="b p">Save</button></div>
+    </form>
+  </div>
+  <div class="card"><h3>Backup</h3>
+    <p class="muted" style="margin-top:0">Everything is saved automatically in this browser on this computer. If you clear your browser data or change laptop, it is gone — so download a backup file regularly and keep it somewhere safe (USB key, Google Drive…). Last backup: <b>${lb ? fmtDate(lb) : 'never'}</b>.</p>
+    <div class="btns">
+      <button class="b p" data-act="backup">Download backup file</button>
+      <button class="b" data-act="restore">Restore from backup file…</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+    </div>
+  </div>
+  <div class="card"><h3>Export to Excel (CSV)</h3>
+    <div class="btns">
+      <button class="b" data-act="csv" data-v="purchases">Purchases</button>
+      <button class="b" data-act="csv" data-v="sales">Sales</button>
+      <button class="b" data-act="csv" data-v="expenses">Expenses</button>
+    </div>
+  </div>
+  <div class="card"><h3>Danger zone</h3>
+    <button class="b" data-act="wipe" style="color:var(--bad)">Erase all data</button>
+  </div>`;
+}
+
+/* ---------- files ---------- */
+function download(filename, text, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type}));
+  a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function toCsv(rows){
+  return '﻿' + rows.map(r => r.map(v => { v = String(v ?? ''); return /[",;\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; }).join(',')).join('\r\n');
+}
+function exportCsv(kind){
+  const lots = lotMap(); let rows;
+  if (kind === 'purchases') rows = [['Date','Brand','Model','Quantity','Unit cost','Total','Supplier','Note'],
+    ...db.purchases.map(p => [p.date,p.brand,p.model,p.qty,p.unitCost,p.qty*p.unitCost,p.supplier,p.note])];
+  else if (kind === 'sales') rows = [['Date','Brand','Model','Quantity','Unit price','Total','Cost','Profit','Channel','Customer','Note'],
+    ...db.sales.map(s => { const c = saleCost(s,lots); return [s.date,s.brand,s.model,s.qty,s.unitPrice,s.qty*s.unitPrice,c,s.qty*s.unitPrice-c,s.channel,s.customer,s.note]; })];
+  else rows = [['Date','Category','Amount','Note'], ...db.expenses.map(e => [e.date,e.category,e.amount,e.note])];
+  download(`watch-tracker-${kind}-${today()}.csv`, toCsv(rows), 'text/csv');
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const {act, v, type, id} = b.dataset;
+  if (act === 'tab'){ ui.tab = v; ui.edit = null; ui.q = ''; render(); window.scrollTo(0,0); }
+  else if (act === 'range'){ ui.range = +v; render(); }
+  else if (act === 'cancel'){ ui.edit = null; render(); }
+  else if (act === 'edit'){ ui.edit = {type, id}; render(); window.scrollTo({top:0, behavior:'smooth'}); }
+  else if (act === 'del'){
+    if (type === 'purchase'){
+      if (soldMap()[id]) return alert('Some watches from this purchase were already sold. Delete those sales first.');
+      if (!confirm('Delete this purchase?')) return;
+      db.purchases = db.purchases.filter(p => p.id !== id);
+    } else if (type === 'sale'){
+      if (!confirm('Delete this sale? The watches go back into stock.')) return;
+      db.sales = db.sales.filter(s => s.id !== id);
+    } else {
+      if (!confirm('Delete this expense?')) return;
+      db.expenses = db.expenses.filter(x => x.id !== id);
+    }
+    ui.edit = null; save(); render();
+  }
+  else if (act === 'backup'){
+    db.settings.lastBackup = today(); save();
+    download(`watch-tracker-backup-${today()}.json`, JSON.stringify(db, null, 1), 'application/json'); render();
+  }
+  else if (act === 'restore'){ $('#restoreFile').click(); }
+  else if (act === 'csv'){ exportCsv(v); }
+  else if (act === 'wipe'){
+    if (confirm('Erase ALL purchases, sales and expenses? This cannot be undone.') && prompt('Type ERASE to confirm') === 'ERASE'){
+      db = normalize({settings: db.settings}); db.settings.lastBackup = null; save(); render();
+    }
+  }
+});
+
+document.addEventListener('submit', e => {
+  const f = e.target.closest('[data-form]'); if (!f) return;
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(f)); for (const k in d) d[k] = d[k].trim();
+  const kind = f.dataset.form, editing = ui.edit && ui.edit.type === kind ? ui.edit.id : null;
+
+  if (kind === 'purchase'){
+    const rec = {date:d.date, brand:d.brand, model:d.model, qty:Math.floor(+d.qty), unitCost:+d.unitCost, supplier:d.supplier, note:d.note};
+    if (!rec.model || !(rec.qty >= 1) || !(rec.unitCost >= 0)) return alert('Please check the model, quantity and price.');
+    if (editing){
+      const p = db.purchases.find(x => x.id === editing), sold = soldMap()[editing] || 0;
+      if (rec.qty < sold) return alert(`You already sold ${sold} from this purchase, so the quantity cannot be lower than ${sold}.`);
+      if (sold && mkey(rec.brand, rec.model) !== mkey(p.brand, p.model)){
+        for (const s of db.sales) if (s.allocs.some(a => a.lotId === editing) && s.allocs.every(a => a.lotId === editing)){ s.brand = rec.brand; s.model = rec.model; }
+      }
+      Object.assign(p, rec);
+    } else db.purchases.push({id:uid(), ...rec});
+  }
+  else if (kind === 'sale'){
+    if (editing){
+      const s = db.sales.find(x => x.id === editing);
+      Object.assign(s, {date:d.date, unitPrice:+d.unitPrice, channel:d.channel, customer:d.customer, note:d.note});
+    } else {
+      const item = stock().find(x => x.key === d.key), qty = Math.floor(+d.qty);
+      if (!item || !(qty >= 1)) return alert('Please choose a watch and a quantity.');
+      if (qty > item.qty) return alert(`Only ${item.qty} in stock for this model.`);
+      const sold = soldMap(), allocs = []; let need = qty;   // oldest stock is sold first
+      for (const p of db.purchases.filter(p => mkey(p.brand,p.model) === d.key).sort((a,b) => a.date.localeCompare(b.date))){
+        const rem = p.qty - (sold[p.id]||0); if (rem <= 0) continue;
+        const take = Math.min(rem, need); allocs.push({lotId:p.id, qty:take}); need -= take; if (!need) break;
+      }
+      db.sales.push({id:uid(), date:d.date, brand:item.brand, model:item.model, qty, unitPrice:+d.unitPrice, allocs, channel:d.channel, customer:d.customer, note:d.note});
+    }
+  }
+  else if (kind === 'expense'){
+    const rec = {date:d.date, category:d.category || 'Other', amount:+d.amount, note:d.note};
+    if (!(rec.amount >= 0)) return alert('Please check the amount.');
+    if (editing) Object.assign(db.expenses.find(x => x.id === editing), rec); else db.expenses.push({id:uid(), ...rec});
+  }
+  else if (kind === 'settings'){
+    db.settings.currency = d.currency || '$'; db.settings.lowStock = Math.max(0, Math.floor(+d.lowStock) || 0);
+  }
+  ui.edit = null; save(); render();
+});
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'q'){
+    ui.q = e.target.value; const pos = e.target.selectionStart; render();
+    const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos);
+  } else if (['saleKey','saleQty','salePrice'].includes(e.target.id)) updateSalePreview();
+});
+
+document.addEventListener('change', e => {
+  if (e.target.id !== 'restoreFile' || !e.target.files[0]) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!d || !Array.isArray(d.purchases) || !Array.isArray(d.sales) || !Array.isArray(d.expenses)) throw 0;
+      if (!confirm(`Replace everything currently in the app with this backup (${d.purchases.length} purchases, ${d.sales.length} sales, ${d.expenses.length} expenses)?`)) return;
+      db = normalize(d); save(); render();
+    } catch(err){ alert('This file is not a valid Watch Tracker backup.'); }
+  };
+  r.readAsText(e.target.files[0]);
+});
+
+render();
+</script>
+</body>
+</html>
