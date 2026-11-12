@@ -1,5 +1,24 @@
 # Kronos Guild — Logo
 
+## 3D version (latest)
+
+![Kronos Guild 3D logo](kronos-guild-logo-3d.png)
+
+Same logo and same name, now with depth and a feminine touch:
+
+- **3D look.** The gold letters, the watch and the tagline are raised, with bevelled edges, side walls and soft shadows.
+- **Ring O.** The first O in KRONOS is a 3D gold ring with a pink diamond.
+- **Pearl N.** The chain is gone. The N is now a strand of blush pearls.
+- **Glasses.** Gold cat-eye glasses with rose lenses rest on top of the D.
+- **Perfume.** A small vintage atomizer with pink glass and a squeeze bulb stands left of the K. Its gold and pink mist sprays behind the name.
+
+| File | |
+| --- | --- |
+| `kronos-guild-logo-3d.png` | 3D logo (2000×2000) |
+| `kronos-guild-logo-3d-no-spray.png` | 3D logo without the mist (small sizes, stamps) |
+
+## Earlier flat version
+
 ![Kronos Guild logo](kronos-guild-logo.png)
 
 The original logo is kept exactly as it was: same watch, same colors, same tagline, and the name **KRONOS GUILD** in the same font and position. Three touches were added for the new jewelry and perfume lines:
