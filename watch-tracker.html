@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Watch Tracker">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1e1d1a" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
 <title>Watch Tracker</title>
 <style>
 :root{
@@ -60,7 +68,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .bar{height:7px;border-radius:4px;background:var(--soft);min-width:70px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
-.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;background:var(--soft);color:var(--muted)}
+.tag{display:inline-block;white-space:nowrap;padding:1px 8px;border-radius:99px;font-size:12px;background:var(--soft);color:var(--muted)}
 .tag.warn{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
 .note{background:var(--soft);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px;
   display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
@@ -70,6 +78,27 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 svg text{fill:var(--muted);font-size:11px}
 .hint{font-size:13px;color:var(--muted);margin-top:10px}
 .btns{display:flex;gap:8px;flex-wrap:wrap}
+.goal .bar{height:12px;margin:12px 0 8px}
+label.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);padding-bottom:8px}
+label.chk input{width:auto;margin:0}
+.ic{margin-right:6px}
+.short{display:none}
+@media (max-width:720px){
+  header{padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}
+  nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);
+    display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  nav button{padding:6px 2px;font-size:11px}
+  .ic{display:block;font-size:19px;margin:0}
+  .long{display:none} .short{display:inline}
+  main{padding:14px 12px calc(96px + env(safe-area-inset-bottom))}
+  input,select{font-size:16px}
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi{padding:12px} .kpi .v{font-size:18px}
+  form.f{grid-template-columns:1fr 1fr}
+  .seg{width:100%} .seg button{flex:1;padding:8px 2px;font-size:13px}
+  button.x{padding:8px}
+  .card{padding:14px}
+}
 </style>
 </head>
 <body>
@@ -83,8 +112,8 @@ svg text{fill:var(--muted);font-size:11px}
 /* ---------- storage ---------- */
 const KEY = 'watchTracker.v1';
 const normalize = d => ({
-  settings: Object.assign({currency:'$', lowStock:1, lastBackup:null}, d.settings || {}),
-  purchases: d.purchases || [], sales: d.sales || [], expenses: d.expenses || []
+  settings: Object.assign({currency:'$', lowStock:1, lastBackup:null, monthlyGoal:0}, d.settings || {}),
+  purchases: d.purchases || [], sales: d.sales || [], expenses: d.expenses || [], returns: d.returns || []
 });
 function load(){ try { return normalize(JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e){ return normalize({}); } }
 function save(){
@@ -113,7 +142,18 @@ const EXP_CATS = ['Shipping','Advertising','Packaging','Platform / payment fees'
 const CHANNELS = ['Instagram','Facebook','WhatsApp','Website','TikTok','In person'];
 
 /* ---------- business logic ---------- */
-function soldMap(){ const m = {}; for (const s of db.sales) for (const a of s.allocs) m[a.lotId] = (m[a.lotId]||0) + a.qty; return m; }
+function soldMap(){
+  const m = {};
+  for (const s of db.sales) for (const a of s.allocs) m[a.lotId] = (m[a.lotId]||0) + a.qty;
+  for (const r of db.returns) if (r.restock) for (const a of r.allocs) m[a.lotId] = (m[a.lotId]||0) - a.qty;  // returned to stock
+  return m;
+}
+const returnedQty = saleId => db.returns.reduce((t,r) => t + (r.saleId === saleId ? r.qty : 0), 0);
+function saleProfit(s, lots){
+  let p = s.qty*s.unitPrice - saleCost(s, lots);
+  for (const r of db.returns) if (r.saleId === s.id) p += (r.restock ? saleCost(r, lots) : 0) - r.refund;
+  return p;
+}
 function lotMap(){ return Object.fromEntries(db.purchases.map(p => [p.id, p])); }
 function saleCost(s, lots){ return s.allocs.reduce((t,a) => t + a.qty * (lots[a.lotId] ? lots[a.lotId].unitCost : 0), 0); }
 function stock(){
@@ -130,8 +170,12 @@ function stock(){
 }
 function stats(from, to){
   const lots = lotMap(), inR = x => x.date >= from && x.date <= to;
-  const r = {rev:0, cogs:0, units:0, exp:0, buy:0, orders:0};
+  const r = {rev:0, cogs:0, units:0, exp:0, buy:0, orders:0, refunds:0, retUnits:0};
   for (const s of db.sales) if (inR(s)){ r.rev += s.qty*s.unitPrice; r.cogs += saleCost(s,lots); r.units += s.qty; r.orders++; }
+  for (const x of db.returns) if (inR(x)){
+    r.rev -= x.refund; r.refunds += x.refund; r.units -= x.qty; r.retUnits += x.qty;
+    if (x.restock) r.cogs -= saleCost(x, lots);
+  }
   for (const e of db.expenses) if (inR(e)) r.exp += e.amount;
   for (const p of db.purchases) if (inR(p)) r.buy += p.qty*p.unitCost;
   r.gross = r.rev - r.cogs; r.net = r.gross - r.exp;
@@ -164,9 +208,9 @@ function buckets(from, to, range){
 }
 
 /* ---------- views ---------- */
-const TABS = [['dashboard','Dashboard'],['stock','Stock & Purchases'],['sales','Sales'],['expenses','Expenses'],['settings','Settings & Backup']];
+const TABS = [['dashboard','📊','Dashboard','Home'],['stock','📦','Stock &amp; Purchases','Stock'],['sales','💰','Sales','Sales'],['expenses','🧾','Expenses','Expenses'],['settings','⚙️','Settings &amp; Backup','Settings']];
 function render(){
-  $('#nav').innerHTML = TABS.map(([k,l]) => `<button data-act="tab" data-v="${k}" class="${ui.tab===k?'on':''}">${l}</button>`).join('');
+  $('#nav').innerHTML = TABS.map(([k,i,l,s]) => `<button data-act="tab" data-v="${k}" class="${ui.tab===k?'on':''}"><span class="ic">${i}</span><span class="long">${l}</span><span class="short">${s}</span></button>`).join('');
   $('#app').innerHTML = ({dashboard:vDashboard, stock:vStock, sales:vSales, expenses:vExpenses, settings:vSettings})[ui.tab]();
   const p = $('#salePreview'); if (p) updateSalePreview();
 }
@@ -180,11 +224,11 @@ function delta(cur, prev){
 function chart(bs){
   const lots = lotMap();
   const data = bs.map(b => { const s = stats(b.from, b.to); return {label:b.label, rev:s.rev, net:s.net}; });
-  const W = 900, H = 250, L = 56, R = 10, T = 12, B = 26, pw = W-L-R, ph = H-T-B;
+  const small = innerWidth < 720, W = small ? 440 : 900, H = 250, L = 56, R = 10, T = 12, B = 26, pw = W-L-R, ph = H-T-B;
   let max = Math.max(0, ...data.map(d => Math.max(d.rev, d.net))), min = Math.min(0, ...data.map(d => d.net));
   if (max === 0 && min === 0) return '<div class="empty">No sales or expenses in this period yet.</div>';
   const y = v => T + (max - v) / (max - min) * ph;
-  const bw = pw / data.length, step = Math.ceil(data.length / 12);
+  const bw = pw / data.length, step = Math.ceil(data.length / (small ? 5 : 12));
   let g = '';
   for (const v of [max, (max+min)/2, min, 0]) g += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${num(Math.round(v))}</text>`;
   data.forEach((d,i) => {
@@ -196,6 +240,23 @@ function chart(bs){
   });
   return `<div class="legend"><span><i style="background:var(--blue)"></i>Revenue</span><span><i style="background:var(--good)"></i>Net profit</span><span><i style="background:var(--bad)"></i>Loss</span></div>
     <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Revenue and profit chart">${g}</svg>`;
+}
+
+function goalCard(){
+  const g = db.settings.monthlyGoal, t = today(), d = parse(t);
+  const month = d.toLocaleDateString(undefined, {month:'long'});
+  if (!g || ui.goalEdit) return `<div class="card goal"><h3>🎯 Monthly profit goal</h3>
+    <form class="f" data-form="goal">
+      <label>Net profit you want to make each month<input type="number" name="monthlyGoal" min="0" step="any" required value="${g || ''}"></label>
+      <div class="btns"><button class="b p">Save goal</button>${g ? '<button type="button" class="b" data-act="goalEdit">Cancel</button>' : ''}</div>
+    </form></div>`;
+  const net = stats(t.slice(0,8) + '01', t).net;
+  const left = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate() - d.getDate();
+  const msg = net >= g ? `🎉 Goal reached — ${money(net-g)} above target`
+    : `${money(g-net)} to go · ${left} day${left===1?'':'s'} left` + (left > 0 ? ` · about ${money((g-net)/left)} per day needed` : '');
+  return `<div class="card goal"><div class="row" style="margin:0"><h3 style="margin:0">🎯 ${esc(month)} profit goal</h3><button class="x" data-act="goalEdit">Change goal</button></div>
+    <div class="bar"><i style="width:${Math.max(0, Math.min(100, net/g*100))}%;background:${net>=g?'var(--good)':'var(--accent)'}"></i></div>
+    <div><b class="${net<0?'bad':net>=g?'good':''}">${money(net)}</b> of ${money(g)} (${pct(net/g*100)}) <span class="muted">· ${msg}</span></div></div>`;
 }
 
 function vDashboard(){
@@ -213,7 +274,13 @@ function vDashboard(){
     const e = bm.get(k) || {brand:x.brand, model:x.model, units:0, rev:0, cost:0};
     e.units += x.qty; e.rev += x.qty*x.unitPrice; e.cost += saleCost(x, lots); bm.set(k, e);
   }
-  const best = [...bm.values()].sort((a,b) => b.units - a.units || b.rev - a.rev).slice(0,10);
+  for (const r of db.returns) if (r.date >= from && r.date <= to){
+    const x = db.sales.find(s => s.id === r.saleId); if (!x) continue;
+    const k = mkey(x.brand, x.model);
+    const e = bm.get(k) || {brand:x.brand, model:x.model, units:0, rev:0, cost:0};
+    e.units -= r.qty; e.rev -= r.refund; if (r.restock) e.cost -= saleCost(r, lots); bm.set(k, e);
+  }
+  const best = [...bm.values()].filter(b => b.units > 0).sort((a,b) => b.units - a.units || b.rev - a.rev).slice(0,10);
   const topU = best[0] ? best[0].units : 1;
 
   // expenses by category
@@ -234,14 +301,16 @@ function vDashboard(){
   const ranges = [[7,'Week'],[30,'Month'],[91,'3 months'],[365,'Year'],[0,'All time']];
   return `
   ${backupNote}
+  ${goalCard()}
   <div class="row"><h2 style="margin:0">Dashboard</h2>
     <div class="seg">${ranges.map(([v,l]) => `<button data-act="range" data-v="${v}" class="${r===v?'on':''}">${l}</button>`).join('')}</div></div>
   <div class="grid kpis">
-    <div class="kpi"><div class="l">Revenue</div><div class="v">${money(s.rev)}</div><div class="d">${prev ? delta(s.rev, prev.rev) : ''}</div></div>
+    <div class="kpi"><div class="l">Revenue</div><div class="v">${money(s.rev)}</div><div class="d">${prev ? delta(s.rev, prev.rev) : ''}${s.refunds ? ' <span class="muted">(after refunds)</span>' : ''}</div></div>
     <div class="kpi"><div class="l">Net profit</div><div class="v ${s.net>=0?'good':'bad'}">${money(s.net)}</div><div class="d">${prev ? delta(s.net, prev.net) : ''}</div></div>
     <div class="kpi"><div class="l">Watches sold</div><div class="v">${s.units}</div><div class="d">${s.units ? 'avg. ' + money(s.rev/s.units) + ' each' : ''}</div></div>
     <div class="kpi"><div class="l">Profit on watches</div><div class="v">${money(s.gross)}</div><div class="d">margin ${s.rev ? pct(s.gross/s.rev*100) : '–'} (before expenses)</div></div>
     <div class="kpi"><div class="l">Extra expenses</div><div class="v">${money(s.exp)}</div></div>
+    <div class="kpi"><div class="l">Returns &amp; refunds</div><div class="v">${money(s.refunds)}</div><div class="d">${s.retUnits} watch${s.retUnits===1?'':'es'} returned</div></div>
     <div class="kpi"><div class="l">Spent on new stock</div><div class="v">${money(s.buy)}</div></div>
     <div class="kpi"><div class="l">In stock now</div><div class="v">${stockUnits}</div><div class="d">worth ${money(stockValue)} at cost</div></div>
   </div>
@@ -309,6 +378,19 @@ function vStock(){
 function vSales(){
   const ed = ui.edit && ui.edit.type === 'sale' ? db.sales.find(s => s.id === ui.edit.id) : null;
   const st = stock().filter(x => x.qty > 0), lots = lotMap();
+  const rt = ui.edit && ui.edit.type === 'return' ? db.sales.find(s => s.id === ui.edit.id) : null;
+  const left = rt ? rt.qty - returnedQty(rt.id) : 0;
+  const returnForm = rt ? `<div class="card"><h3>↩️ Return / refund — ${name(rt)}, sold ${fmtDate(rt.date)} at ${money(rt.unitPrice)}</h3>
+    <form class="f" data-form="return">
+      <label>Return date<input type="date" name="date" required value="${today()}"></label>
+      <label>Watches returned (max ${left})<input type="number" name="qty" id="retQty" min="0" max="${left}" step="1" required value="${Math.min(1,left)}"></label>
+      <label>Total money refunded<input type="number" name="refund" id="retRefund" min="0" step="any" required value="${left ? rt.unitPrice : ''}" data-unit="${rt.unitPrice}"></label>
+      <label>Reason / note (optional)<input name="note"></label>
+      <label class="chk"><input type="checkbox" name="restock" ${left ? 'checked' : ''}> Put the watch back in stock</label>
+      <div class="btns"><button class="b p">Save return</button><button type="button" class="b" data-act="cancel">Cancel</button></div>
+    </form>
+    <div class="hint">Untick “back in stock” if the watch came back damaged or was never sent back — its cost then counts as a loss. If the customer keeps the watch and you only give some money back, set watches returned to 0.</div></div>` : '';
+  const rets = db.returns.slice().sort((a,b) => b.date.localeCompare(a.date));
   const rows = db.sales.filter(s => match(s.brand, s.model, s.channel, s.customer, s.note)).sort((a,b) => b.date.localeCompare(a.date));
   const form = ed || st.length ? `
     <form class="f" data-form="sale">
@@ -327,13 +409,22 @@ function vSales(){
     : '<div class="empty">Nothing in stock to sell. Add a purchase first in “Stock &amp; Purchases”.</div>';
   return `
   <h2>Sales</h2>
-  <div class="card"><h3>${ed ? 'Edit sale' : 'Record a sale'}</h3>${form}</div>
+  ${rt ? returnForm : `<div class="card"><h3>${ed ? 'Edit sale' : 'Record a sale'}</h3>${form}</div>`}
   <div class="card"><div class="row"><h3 style="margin:0">Sales history</h3>${search('Search sales…')}</div>
     ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Qty</th><th class="n">Sold at</th><th class="n">Total</th><th class="n">Profit</th><th>Via / customer / note</th><th></th></tr>
-    ${rows.map(s => { const pr = s.qty*s.unitPrice - saleCost(s,lots); return `<tr><td>${fmtDate(s.date)}</td><td>${name(s)}</td><td class="n">${s.qty}</td><td class="n">${money(s.unitPrice)}</td><td class="n">${money(s.qty*s.unitPrice)}</td>
+    ${rows.map(s => { const pr = saleProfit(s,lots), rq = returnedQty(s.id), hasR = db.returns.some(r => r.saleId === s.id);
+      return `<tr><td>${fmtDate(s.date)}</td><td>${name(s)}${hasR ? ` <span class="tag warn">${rq ? rq + ' returned' : 'refunded'}</span>` : ''}</td><td class="n">${s.qty}</td><td class="n">${money(s.unitPrice)}</td><td class="n">${money(s.qty*s.unitPrice)}</td>
       <td class="n ${pr>=0?'good':'bad'}">${money(pr)}</td><td class="muted">${esc([s.channel,s.customer,s.note].filter(Boolean).join(' · '))}</td>
-      <td class="n"><button class="x" data-act="edit" data-type="sale" data-id="${s.id}">Edit</button><button class="x del" data-act="del" data-type="sale" data-id="${s.id}">Delete</button></td></tr>`; }).join('')}</table></div>`
+      <td class="n"><button class="x" data-act="edit" data-type="return" data-id="${s.id}">↩ Return</button><button class="x" data-act="edit" data-type="sale" data-id="${s.id}">Edit</button><button class="x del" data-act="del" data-type="sale" data-id="${s.id}">Delete</button></td></tr>`; }).join('')}</table></div>`
     : '<div class="empty">No sales found.</div>'}
+  </div>
+  <div class="card"><h3>Returns &amp; refunds</h3>
+    ${rets.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Returned</th><th class="n">Refunded</th><th>Back in stock</th><th>Note</th><th></th></tr>
+    ${rets.map(r => { const s = db.sales.find(x => x.id === r.saleId) || {brand:'', model:'?'};
+      return `<tr><td>${fmtDate(r.date)}</td><td>${name(s)}</td><td class="n">${r.qty}</td><td class="n">${money(r.refund)}</td>
+      <td>${r.qty ? (r.restock ? 'Yes' : '<span class="bad">No (loss)</span>') : '–'}</td><td class="muted">${esc(r.note)}</td>
+      <td class="n"><button class="x del" data-act="del" data-type="return" data-id="${r.id}">Delete</button></td></tr>`; }).join('')}</table></div>`
+    : '<div class="empty">No returns yet. To record one, press “↩ Return” next to the sale above.</div>'}
   </div>`;
 }
 function updateSalePreview(){
@@ -379,6 +470,7 @@ function vSettings(){
     <form class="f" data-form="settings">
       <label>Currency symbol<input name="currency" required maxlength="6" value="${esc(db.settings.currency)}"></label>
       <label>Low-stock alert when units left ≤<input type="number" name="lowStock" min="0" step="1" required value="${db.settings.lowStock}"></label>
+      <label>Monthly profit goal (0 = no goal)<input type="number" name="monthlyGoal" min="0" step="any" value="${db.settings.monthlyGoal || 0}"></label>
       <div><button class="b p">Save</button></div>
     </form>
   </div>
@@ -395,6 +487,7 @@ function vSettings(){
       <button class="b" data-act="csv" data-v="purchases">Purchases</button>
       <button class="b" data-act="csv" data-v="sales">Sales</button>
       <button class="b" data-act="csv" data-v="expenses">Expenses</button>
+      <button class="b" data-act="csv" data-v="returns">Returns</button>
     </div>
   </div>
   <div class="card"><h3>Danger zone</h3>
@@ -404,6 +497,12 @@ function vSettings(){
 
 /* ---------- files ---------- */
 function download(filename, text, type){
+  try {   // on phones, open the share sheet so the file can be saved to Files / Drive
+    const file = new File([text], filename, {type});
+    if (matchMedia('(pointer:coarse)').matches && navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({files:[file]}).catch(() => {}); return;
+    }
+  } catch(e){}
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], {type}));
   a.download = filename; document.body.appendChild(a); a.click(); a.remove();
@@ -418,6 +517,8 @@ function exportCsv(kind){
     ...db.purchases.map(p => [p.date,p.brand,p.model,p.qty,p.unitCost,p.qty*p.unitCost,p.supplier,p.note])];
   else if (kind === 'sales') rows = [['Date','Brand','Model','Quantity','Unit price','Total','Cost','Profit','Channel','Customer','Note'],
     ...db.sales.map(s => { const c = saleCost(s,lots); return [s.date,s.brand,s.model,s.qty,s.unitPrice,s.qty*s.unitPrice,c,s.qty*s.unitPrice-c,s.channel,s.customer,s.note]; })];
+  else if (kind === 'returns') rows = [['Date','Brand','Model','Returned','Refunded','Back in stock','Note'],
+    ...db.returns.map(r => { const s = db.sales.find(x => x.id === r.saleId) || {}; return [r.date,s.brand,s.model,r.qty,r.refund,r.restock?'yes':'no',r.note]; })];
   else rows = [['Date','Category','Amount','Note'], ...db.expenses.map(e => [e.date,e.category,e.amount,e.note])];
   download(`watch-tracker-${kind}-${today()}.csv`, toCsv(rows), 'text/csv');
 }
@@ -429,15 +530,24 @@ document.addEventListener('click', e => {
   if (act === 'tab'){ ui.tab = v; ui.edit = null; ui.q = ''; render(); window.scrollTo(0,0); }
   else if (act === 'range'){ ui.range = +v; render(); }
   else if (act === 'cancel'){ ui.edit = null; render(); }
+  else if (act === 'goalEdit'){ ui.goalEdit = !ui.goalEdit; render(); }
   else if (act === 'edit'){ ui.edit = {type, id}; render(); window.scrollTo({top:0, behavior:'smooth'}); }
   else if (act === 'del'){
     if (type === 'purchase'){
-      if (soldMap()[id]) return alert('Some watches from this purchase were already sold. Delete those sales first.');
+      if (db.sales.some(s => s.allocs.some(a => a.lotId === id))) return alert('Some watches from this purchase were already sold. Delete those sales first.');
       if (!confirm('Delete this purchase?')) return;
       db.purchases = db.purchases.filter(p => p.id !== id);
     } else if (type === 'sale'){
-      if (!confirm('Delete this sale? The watches go back into stock.')) return;
+      const hasR = db.returns.some(r => r.saleId === id);
+      if (!confirm(hasR ? 'Delete this sale and its returns/refunds? The watches go back into stock.' : 'Delete this sale? The watches go back into stock.')) return;
       db.sales = db.sales.filter(s => s.id !== id);
+      db.returns = db.returns.filter(r => r.saleId !== id);
+    } else if (type === 'return'){
+      const r = db.returns.find(x => x.id === id), sold = soldMap(), lots = lotMap();
+      if (r.restock && r.allocs.some(a => lots[a.lotId] && lots[a.lotId].qty - (sold[a.lotId]||0) < a.qty))
+        return alert('The returned watch was already sold again, so this return cannot be deleted. Delete that later sale first.');
+      if (!confirm('Delete this return? The sale counts as normal again.')) return;
+      db.returns = db.returns.filter(x => x.id !== id);
     } else {
       if (!confirm('Delete this expense?')) return;
       db.expenses = db.expenses.filter(x => x.id !== id);
@@ -496,8 +606,26 @@ document.addEventListener('submit', e => {
     if (!(rec.amount >= 0)) return alert('Please check the amount.');
     if (editing) Object.assign(db.expenses.find(x => x.id === editing), rec); else db.expenses.push({id:uid(), ...rec});
   }
+  else if (kind === 'return'){
+    const s = db.sales.find(x => x.id === editing); if (!s) return;
+    const qty = Math.floor(+d.qty), refund = +d.refund, left = s.qty - returnedQty(s.id);
+    if (!(qty >= 0) || qty > left) return alert(`You can return at most ${left} for this sale.`);
+    if (!(refund >= 0) || (qty === 0 && !(refund > 0))) return alert('Enter the number of watches returned and/or the money refunded.');
+    const used = {}, allocs = []; let need = qty;   // which purchase batches the returned watches came from
+    for (const r of db.returns) if (r.saleId === s.id) for (const a of r.allocs) used[a.lotId] = (used[a.lotId]||0) + a.qty;
+    for (const a of s.allocs.slice().reverse()){
+      if (!need) break;
+      const take = Math.min(a.qty - (used[a.lotId]||0), need);
+      if (take > 0){ allocs.push({lotId:a.lotId, qty:take}); need -= take; }
+    }
+    db.returns.push({id:uid(), date:d.date, saleId:s.id, qty, refund, restock: qty > 0 && d.restock === 'on', allocs, note:d.note});
+  }
+  else if (kind === 'goal'){
+    db.settings.monthlyGoal = Math.max(0, +d.monthlyGoal || 0); ui.goalEdit = false;
+  }
   else if (kind === 'settings'){
     db.settings.currency = d.currency || '$'; db.settings.lowStock = Math.max(0, Math.floor(+d.lowStock) || 0);
+    db.settings.monthlyGoal = Math.max(0, +d.monthlyGoal || 0);
   }
   ui.edit = null; save(); render();
 });
@@ -507,6 +635,7 @@ document.addEventListener('input', e => {
     ui.q = e.target.value; const pos = e.target.selectionStart; render();
     const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos);
   } else if (['saleKey','saleQty','salePrice'].includes(e.target.id)) updateSalePreview();
+  else if (e.target.id === 'retQty'){ const r = $('#retRefund'); r.value = (+e.target.value || 0) * +r.dataset.unit || ''; }
 });
 
 document.addEventListener('change', e => {
@@ -523,6 +652,7 @@ document.addEventListener('change', e => {
   r.readAsText(e.target.files[0]);
 });
 
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 render();
 </script>
 </body>
