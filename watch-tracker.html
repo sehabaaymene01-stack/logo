@@ -96,7 +96,8 @@ label.chk input{width:auto;margin:0}
   .kpi{padding:12px} .kpi .v{font-size:18px}
   form.f{grid-template-columns:1fr 1fr}
   .seg{width:100%} .seg button{flex:1;padding:8px 2px;font-size:13px}
-  button.x{padding:8px}
+  button.x{padding:8px 9px;font-size:18px}
+  td.act{position:sticky;right:0;background:var(--card);box-shadow:-10px 0 8px -8px rgba(0,0,0,.18)}
   .card{padding:14px}
 }
 </style>
@@ -371,7 +372,7 @@ function vStock(){
     ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Qty</th><th class="n">Unit cost</th><th class="n">Total</th><th class="n">Left</th><th>Supplier / note</th><th></th></tr>
     ${rows.map(p => `<tr><td>${fmtDate(p.date)}</td><td>${name(p)}</td><td class="n">${p.qty}</td><td class="n">${money(p.unitCost)}</td><td class="n">${money(p.qty*p.unitCost)}</td>
       <td class="n">${p.qty-(sold[p.id]||0)}</td><td class="muted">${esc([p.supplier,p.note].filter(Boolean).join(' · '))}</td>
-      <td class="n"><button class="x" data-act="edit" data-type="purchase" data-id="${p.id}">Edit</button><button class="x del" data-act="del" data-type="purchase" data-id="${p.id}">Delete</button></td></tr>`).join('')}</table></div>`
+      <td class="n act"><button class="x" data-act="edit" data-type="purchase" data-id="${p.id}" title="Edit">✏️<span class="long"> Edit</span></button><button class="x del" data-act="del" data-type="purchase" data-id="${p.id}" title="Delete">🗑️<span class="long"> Delete</span></button></td></tr>`).join('')}</table></div>`
     : '<div class="empty">No purchases found.</div>'}
   </div>`;
 }
@@ -416,7 +417,7 @@ function vSales(){
     ${rows.map(s => { const pr = saleProfit(s,lots), rq = returnedQty(s.id), hasR = db.returns.some(r => r.saleId === s.id);
       return `<tr><td>${fmtDate(s.date)}</td><td>${name(s)}${hasR ? ` <span class="tag warn">${rq ? rq + ' returned' : 'refunded'}</span>` : ''}</td><td class="n">${s.qty}</td><td class="n">${money(s.unitPrice)}</td><td class="n">${money(s.qty*s.unitPrice)}</td>
       <td class="n ${pr>=0?'good':'bad'}">${money(pr)}</td><td class="muted">${esc([s.channel,s.customer,s.note].filter(Boolean).join(' · '))}</td>
-      <td class="n"><button class="x" data-act="edit" data-type="return" data-id="${s.id}">↩ Return</button><button class="x" data-act="edit" data-type="sale" data-id="${s.id}">Edit</button><button class="x del" data-act="del" data-type="sale" data-id="${s.id}">Delete</button></td></tr>`; }).join('')}</table></div>`
+      <td class="n act"><button class="x" data-act="edit" data-type="return" data-id="${s.id}" title="Return / refund">↩<span class="long"> Return</span></button><button class="x" data-act="edit" data-type="sale" data-id="${s.id}" title="Edit">✏️<span class="long"> Edit</span></button><button class="x del" data-act="del" data-type="sale" data-id="${s.id}" title="Delete">🗑️<span class="long"> Delete</span></button></td></tr>`; }).join('')}</table></div>`
     : '<div class="empty">No sales found.</div>'}
   </div>
   <div class="card"><h3>Returns &amp; refunds</h3>
@@ -424,7 +425,7 @@ function vSales(){
     ${rets.map(r => { const s = db.sales.find(x => x.id === r.saleId) || {brand:'', model:'?'};
       return `<tr><td>${fmtDate(r.date)}</td><td>${name(s)}</td><td class="n">${r.qty}</td><td class="n">${money(r.refund)}</td>
       <td>${r.qty ? (r.restock ? 'Yes' : '<span class="bad">No (loss)</span>') : '–'}</td><td class="muted">${esc(r.note)}</td>
-      <td class="n"><button class="x del" data-act="del" data-type="return" data-id="${r.id}">Delete</button></td></tr>`; }).join('')}</table></div>`
+      <td class="n act"><button class="x del" data-act="del" data-type="return" data-id="${r.id}" title="Delete">🗑️<span class="long"> Delete</span></button></td></tr>`; }).join('')}</table></div>`
     : '<div class="empty">No returns yet. To record one, press “↩ Return” next to the sale above.</div>'}
   </div>`;
 }
@@ -458,7 +459,7 @@ function vExpenses(){
   <div class="card"><div class="row"><h3 style="margin:0">Expense history</h3>${search('Search expenses…')}</div>
     ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Category</th><th class="n">Amount</th><th>Note</th><th></th></tr>
     ${rows.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.category)}</td><td class="n">${money(e.amount)}</td><td class="muted">${esc(e.note)}</td>
-      <td class="n"><button class="x" data-act="edit" data-type="expense" data-id="${e.id}">Edit</button><button class="x del" data-act="del" data-type="expense" data-id="${e.id}">Delete</button></td></tr>`).join('')}</table></div>`
+      <td class="n act"><button class="x" data-act="edit" data-type="expense" data-id="${e.id}" title="Edit">✏️<span class="long"> Edit</span></button><button class="x del" data-act="del" data-type="expense" data-id="${e.id}" title="Delete">🗑️<span class="long"> Delete</span></button></td></tr>`).join('')}</table></div>`
     : '<div class="empty">No expenses found.</div>'}
   </div>`;
 }
