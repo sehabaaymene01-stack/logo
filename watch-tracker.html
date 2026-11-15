@@ -296,6 +296,17 @@ function vDashboard(){
   const slow = st.filter(x => x.qty > 0 && x.oldest && daysBetween(x.oldest, to) >= 60)
                  .sort((a,b) => a.oldest.localeCompare(b.oldest));
 
+  // money spent on stock, week by week (7-day blocks ending today)
+  const weeks = [];
+  for (let i = 0; i < 8; i++){
+    const wTo = addDays(to, -7*i), wFrom = addDays(wTo, -6);
+    const ps = db.purchases.filter(p => p.date >= wFrom && p.date <= wTo);
+    const short = x => parse(x).toLocaleDateString(undefined, {day:'numeric', month:'short'});
+    weeks.push({label: i === 0 ? 'This week' : i === 1 ? 'Last week' : short(wFrom) + '–' + short(wTo),
+      buy: ps.reduce((t,p) => t + p.qty*p.unitCost, 0), units: ps.reduce((t,p) => t + p.qty, 0)});
+  }
+  const topW = Math.max(...weeks.map(w => w.buy)) || 1;
+
   const lb = db.settings.lastBackup;
   const backupNote = hasData && (!lb || daysBetween(lb, to) >= 7)
     ? `<div class="note"><span>💾 ${lb ? 'Your last backup was ' + daysBetween(lb,to) + ' days ago.' : 'You have not made a backup yet.'} Your data lives only in this browser — save a backup file regularly.</span><button class="b p" data-act="backup">Backup now</button></div>` : '';
@@ -314,7 +325,8 @@ function vDashboard(){
     <div class="kpi"><div class="l">Extra expenses</div><div class="v">${money(s.exp)}</div></div>
     <div class="kpi"><div class="l">Returns &amp; refunds</div><div class="v">${money(s.refunds)}</div><div class="d">${s.retUnits} watch${s.retUnits===1?'':'es'} returned</div></div>
     <div class="kpi"><div class="l">Spent on new stock</div><div class="v">${money(s.buy)}</div></div>
-    <div class="kpi"><div class="l">In stock now</div><div class="v">${stockUnits}</div><div class="d">worth ${money(stockValue)} at cost</div></div>
+    <div class="kpi"><div class="l">Spent on stock this week</div><div class="v">${money(weeks[0].buy)}</div><div class="d">${weeks[1].buy ? delta(weeks[0].buy, weeks[1].buy).replace('previous period','last week') : 'last 7 days'}</div></div>
+    <div class="kpi"><div class="l">Current stock worth</div><div class="v">${money(stockValue)}</div><div class="d">${stockUnits} watch${stockUnits===1?'':'es'} in stock, at cost</div></div>
   </div>
   <div class="card"><h3>Revenue &amp; net profit</h3>${chart(buckets(from, to, r))}</div>
   <div class="grid two">
@@ -328,6 +340,10 @@ function vDashboard(){
     <div class="card"><h3>Expenses by category</h3>
       ${exps.length ? `<table>${exps.map(([c,v]) => `<tr><td>${esc(c)}</td><td><div class="bar"><i style="width:${v/exps[0][1]*100}%"></i></div></td><td class="n">${money(v)}</td></tr>`).join('')}</table>`
       : '<div class="empty">No expenses in this period.</div>'}
+    </div>
+    <div class="card"><h3>🛒 Spent on new stock, week by week</h3>
+      <table>${weeks.map(w => `<tr><td style="white-space:nowrap">${w.label}</td><td><div class="bar"><i style="width:${w.buy/topW*100}%"></i></div></td>
+        <td class="n muted">${w.units ? w.units + ' watch' + (w.units===1?'':'es') : ''}</td><td class="n">${money(w.buy)}</td></tr>`).join('')}</table>
     </div>
     <div class="card"><h3>⚠️ Low stock — time to reorder?</h3>
       ${low.length ? `<table>${low.map(x => `<tr><td>${name(x)}</td><td class="n"><span class="tag ${x.qty===0?'warn':''}">${x.qty===0?'Sold out':x.qty+' left'}</span></td></tr>`).join('')}</table>`
