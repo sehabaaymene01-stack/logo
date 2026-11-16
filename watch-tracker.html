@@ -41,6 +41,7 @@ h3{font-size:15px;margin:0 0 10px}
 .kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 .kpi .v{font-size:23px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
 .kpi .d{font-size:12px;color:var(--muted);margin-top:2px}
+.two > .card{min-width:0;overflow-x:auto}
 .two{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
 .good{color:var(--good)} .bad{color:var(--bad)} .muted{color:var(--muted)}
 form.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
@@ -72,6 +73,21 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tag.warn{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
 .note{background:var(--soft);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px;
   display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.wn{display:inline-flex;align-items:center;gap:9px;vertical-align:middle}
+.th{width:38px;height:38px;border-radius:8px;object-fit:cover;flex:none;background:var(--soft);cursor:zoom-in}
+.th.none{display:inline-flex;align-items:center;justify-content:center;font-size:17px;opacity:.4;cursor:default}
+#zoom{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
+#zoom img{width:min(90vw,440px);max-height:90vh;object-fit:contain;border-radius:14px}
+label.cb{position:relative}
+.combo{position:absolute;left:0;top:100%;z-index:8;margin-top:4px;width:max(100%,270px);max-width:92vw;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-height:250px;overflow:auto}
+.combo div{padding:9px 11px;display:flex;align-items:center;gap:9px;font-size:15px;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line)}
+.combo div:last-child{border-bottom:0}
+.combo div:hover{background:var(--soft)}
+.combo small{color:var(--muted);margin-left:auto;white-space:nowrap}
+.photo{display:flex;align-items:center;gap:8px;margin-top:3px}
+.photo .th{width:42px;height:42px}
+.photo input{margin:0;min-width:0}
 .empty{color:var(--muted);padding:18px 4px;text-align:center}
 .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
@@ -115,15 +131,17 @@ const KEY = 'watchTracker.v1';
 const normalize = d => ({
   settings: Object.assign({currency:'DA', lowStock:1, lastBackup:null, monthlyGoal:0},
     d.settings && d.settings.currency === '$' && !d.settings.currencySet ? {...d.settings, currency:'DA'} : d.settings || {}),
-  purchases: d.purchases || [], sales: d.sales || [], expenses: d.expenses || [], returns: d.returns || []
+  purchases: d.purchases || [], sales: d.sales || [], expenses: d.expenses || [], returns: d.returns || [], photos: d.photos || {}
 });
 function load(){ try { return normalize(JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e){ return normalize({}); } }
 function save(){
+  const used = new Set([...db.purchases, ...db.sales].map(x => mkey(x.brand || '', x.model || '')));
+  for (const k in db.photos) if (!used.has(k)) delete db.photos[k];   // drop photos of models that no longer exist
   try { localStorage.setItem(KEY, JSON.stringify(db)); }
-  catch(e){ alert('Could not save your data in this browser. Export a backup from Settings now.'); }
+  catch(e){ alert('Could not save: the storage of this browser is full (photos take the most space). Export a backup from Settings now, then remove some photos.'); }
 }
 let db = load();
-const ui = {tab:'dashboard', range:30, edit:null, q:''};
+const ui = {tab:'dashboard', range:30, edit:null, q:'', photo:null};
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -140,6 +158,22 @@ const money = v => (v < 0 ? '−' : '') + num(Math.abs(v)) + ' ' + esc(db.settin
 const pct = v => isFinite(v) ? (Math.round(v*10)/10) + '%' : '–';
 const mkey = (brand, model) => (brand.trim() + '|' + model.trim()).toLowerCase();
 const name = x => esc((x.brand ? x.brand + ' ' : '') + x.model);
+const thumb = (x, zoom = true) => { const p = db.photos[mkey(x.brand || '', x.model || '')];
+  return p ? `<img class="th" src="${esc(p)}" alt=""${zoom ? ' data-act="zoom"' : ''}>` : '<span class="th none">⌚</span>'; };
+const wn = x => `<span class="wn">${thumb(x)}<span>${name(x)}</span></span>`;
+function shrink(file){   // resize a picture to a small JPEG so many photos fit in the browser storage
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 320 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(); };
+    img.src = url;
+  });
+}
 const EXP_CATS = ['Shipping','Advertising','Packaging','Platform / payment fees','Repairs & parts','Customs & taxes','Tools & equipment','Other'];
 const CHANNELS = ['Instagram','Facebook','WhatsApp','Website','TikTok','In person'];
 
@@ -215,6 +249,7 @@ function render(){
   $('#nav').innerHTML = TABS.map(([k,i,l,s]) => `<button data-act="tab" data-v="${k}" class="${ui.tab===k?'on':''}"><span class="ic">${i}</span><span class="long">${l}</span><span class="short">${s}</span></button>`).join('');
   $('#app').innerHTML = ({dashboard:vDashboard, stock:vStock, sales:vSales, expenses:vExpenses, settings:vSettings})[ui.tab]();
   const p = $('#salePreview'); if (p) updateSalePreview();
+  updatePhotoPrev();
 }
 
 function delta(cur, prev){
@@ -332,7 +367,7 @@ function vDashboard(){
   <div class="grid two">
     <div class="card"><h3>🏆 Best sellers</h3>
       ${best.length ? `<div class="scroll"><table><tr><th>#</th><th>Model</th><th class="n">Sold</th><th></th><th class="n">Revenue</th><th class="n">Profit</th></tr>
-      ${best.map((b,i) => `<tr><td>${i+1}</td><td>${name(b)}</td><td class="n">${b.units}</td>
+      ${best.map((b,i) => `<tr><td>${i+1}</td><td>${wn(b)}</td><td class="n">${b.units}</td>
         <td><div class="bar"><i style="width:${b.units/topU*100}%"></i></div></td>
         <td class="n">${money(b.rev)}</td><td class="n ${b.rev-b.cost>=0?'good':'bad'}">${money(b.rev-b.cost)}</td></tr>`).join('')}</table></div>`
       : '<div class="empty">No sales in this period.</div>'}
@@ -342,15 +377,15 @@ function vDashboard(){
       : '<div class="empty">No expenses in this period.</div>'}
     </div>
     <div class="card"><h3>🛒 Spent on new stock, week by week</h3>
-      <table>${weeks.map(w => `<tr><td style="white-space:nowrap">${w.label}</td><td><div class="bar"><i style="width:${w.buy/topW*100}%"></i></div></td>
-        <td class="n muted">${w.units ? w.units + ' watch' + (w.units===1?'':'es') : ''}</td><td class="n">${money(w.buy)}</td></tr>`).join('')}</table>
+      <table>${weeks.map(w => `<tr><td style="white-space:nowrap">${w.label}${w.units ? `<div class="muted" style="font-size:12px">${w.units} watch${w.units===1?'':'es'}</div>` : ''}</td>
+        <td style="width:40%"><div class="bar"><i style="width:${w.buy/topW*100}%"></i></div></td><td class="n">${money(w.buy)}</td></tr>`).join('')}</table>
     </div>
     <div class="card"><h3>⚠️ Low stock — time to reorder?</h3>
-      ${low.length ? `<table>${low.map(x => `<tr><td>${name(x)}</td><td class="n"><span class="tag ${x.qty===0?'warn':''}">${x.qty===0?'Sold out':x.qty+' left'}</span></td></tr>`).join('')}</table>`
+      ${low.length ? `<table>${low.map(x => `<tr><td>${wn(x)}</td><td class="n"><span class="tag ${x.qty===0?'warn':''}">${x.qty===0?'Sold out':x.qty+' left'}</span></td></tr>`).join('')}</table>`
       : '<div class="empty">Nothing running low.</div>'}
     </div>
     <div class="card"><h3>🐢 Slow movers (in stock 60+ days)</h3>
-      ${slow.length ? `<table>${slow.map(x => `<tr><td>${name(x)}</td><td class="n">${x.qty} unit${x.qty>1?'s':''}</td><td class="n muted">${daysBetween(x.oldest,to)} days</td></tr>`).join('')}</table>`
+      ${slow.length ? `<table>${slow.map(x => `<tr><td>${wn(x)}</td><td class="n">${x.qty} unit${x.qty>1?'s':''}</td><td class="n muted">${daysBetween(x.oldest,to)} days</td></tr>`).join('')}</table>`
       : '<div class="empty">No watches have been sitting too long.</div>'}
     </div>
   </div>`;
@@ -369,24 +404,26 @@ function vStock(){
   <div class="card"><h3>${ed ? 'Edit purchase' : 'Add watches you bought'}</h3>
     <form class="f" data-form="purchase">
       <label>Date<input type="date" name="date" required value="${ed ? ed.date : today()}"></label>
-      <label>Brand<input name="brand" list="brands" placeholder="e.g. Casio" value="${esc(ed?.brand)}"></label>
-      <label>Model<input name="model" list="models" required placeholder="e.g. F-91W" value="${esc(ed?.model)}"></label>
+      <label class="cb">Brand<input name="brand" data-combo autocomplete="off" placeholder="Pick or type" value="${esc(ed?.brand)}"></label>
+      <label class="cb">Model<input name="model" data-combo autocomplete="off" required placeholder="Pick or type" value="${esc(ed?.model)}"></label>
       <label>Quantity<input type="number" name="qty" min="1" step="1" required value="${ed ? ed.qty : 1}"></label>
       <label>Price paid per watch<input type="number" name="unitCost" min="0" step="any" required value="${ed ? ed.unitCost : ''}"></label>
       <label>Supplier (optional)<input name="supplier" list="suppliers" value="${esc(ed?.supplier)}"></label>
       <label>Note (optional)<input name="note" value="${esc(ed?.note)}"></label>
+      <div><label for="photoFile">Photo of the model (optional)</label>
+        <div class="photo"><span id="photoPrev"></span><input type="file" id="photoFile" accept="image/*"></div></div>
       <div class="btns"><button class="b p">${ed ? 'Save changes' : 'Add to stock'}</button>${ed ? '<button type="button" class="b" data-act="cancel">Cancel</button>' : ''}</div>
     </form>
-    ${dl('brands', db.purchases.map(p => p.brand))}${dl('models', db.purchases.map(p => p.model))}${dl('suppliers', db.purchases.map(p => p.supplier))}
+    ${dl('suppliers', db.purchases.map(p => p.supplier))}
   </div>
   <div class="card"><h3>Currently in stock</h3>
     ${st.length ? `<div class="scroll"><table><tr><th>Model</th><th class="n">In stock</th><th class="n">Avg. cost</th><th class="n">Stock value</th><th class="n">In stock since</th></tr>
-    ${st.map(x => `<tr><td>${name(x)}</td><td class="n">${x.qty}</td><td class="n">${money(x.value/x.qty)}</td><td class="n">${money(x.value)}</td><td class="n muted">${fmtDate(x.oldest)}</td></tr>`).join('')}</table></div>`
+    ${st.map(x => `<tr><td>${wn(x)}</td><td class="n">${x.qty}</td><td class="n">${money(x.value/x.qty)}</td><td class="n">${money(x.value)}</td><td class="n muted">${fmtDate(x.oldest)}</td></tr>`).join('')}</table></div>`
     : '<div class="empty">Your stock is empty. Add your first purchase above.</div>'}
   </div>
   <div class="card"><div class="row"><h3 style="margin:0">Purchase history</h3>${search('Search purchases…')}</div>
     ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Qty</th><th class="n">Unit cost</th><th class="n">Total</th><th class="n">Left</th><th>Supplier / note</th><th></th></tr>
-    ${rows.map(p => `<tr><td>${fmtDate(p.date)}</td><td>${name(p)}</td><td class="n">${p.qty}</td><td class="n">${money(p.unitCost)}</td><td class="n">${money(p.qty*p.unitCost)}</td>
+    ${rows.map(p => `<tr><td>${fmtDate(p.date)}</td><td>${wn(p)}</td><td class="n">${p.qty}</td><td class="n">${money(p.unitCost)}</td><td class="n">${money(p.qty*p.unitCost)}</td>
       <td class="n">${p.qty-(sold[p.id]||0)}</td><td class="muted">${esc([p.supplier,p.note].filter(Boolean).join(' · '))}</td>
       <td class="n act"><button class="x" data-act="edit" data-type="purchase" data-id="${p.id}" title="Edit">✏️<span class="long"> Edit</span></button><button class="x del" data-act="del" data-type="purchase" data-id="${p.id}" title="Delete">🗑️<span class="long"> Delete</span></button></td></tr>`).join('')}</table></div>`
     : '<div class="empty">No purchases found.</div>'}
@@ -431,7 +468,7 @@ function vSales(){
   <div class="card"><div class="row"><h3 style="margin:0">Sales history</h3>${search('Search sales…')}</div>
     ${rows.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Qty</th><th class="n">Sold at</th><th class="n">Total</th><th class="n">Profit</th><th>Via / customer / note</th><th></th></tr>
     ${rows.map(s => { const pr = saleProfit(s,lots), rq = returnedQty(s.id), hasR = db.returns.some(r => r.saleId === s.id);
-      return `<tr><td>${fmtDate(s.date)}</td><td>${name(s)}${hasR ? ` <span class="tag warn">${rq ? rq + ' returned' : 'refunded'}</span>` : ''}</td><td class="n">${s.qty}</td><td class="n">${money(s.unitPrice)}</td><td class="n">${money(s.qty*s.unitPrice)}</td>
+      return `<tr><td>${fmtDate(s.date)}</td><td>${wn(s)}${hasR ? ` <span class="tag warn">${rq ? rq + ' returned' : 'refunded'}</span>` : ''}</td><td class="n">${s.qty}</td><td class="n">${money(s.unitPrice)}</td><td class="n">${money(s.qty*s.unitPrice)}</td>
       <td class="n ${pr>=0?'good':'bad'}">${money(pr)}</td><td class="muted">${esc([s.channel,s.customer,s.note].filter(Boolean).join(' · '))}</td>
       <td class="n act"><button class="x" data-act="edit" data-type="return" data-id="${s.id}" title="Return / refund">↩<span class="long"> Return</span></button><button class="x" data-act="edit" data-type="sale" data-id="${s.id}" title="Edit">✏️<span class="long"> Edit</span></button><button class="x del" data-act="del" data-type="sale" data-id="${s.id}" title="Delete">🗑️<span class="long"> Delete</span></button></td></tr>`; }).join('')}</table></div>`
     : '<div class="empty">No sales found.</div>'}
@@ -439,7 +476,7 @@ function vSales(){
   <div class="card"><h3>Returns &amp; refunds</h3>
     ${rets.length ? `<div class="scroll"><table><tr><th>Date</th><th>Model</th><th class="n">Returned</th><th class="n">Refunded</th><th>Back in stock</th><th>Note</th><th></th></tr>
     ${rets.map(r => { const s = db.sales.find(x => x.id === r.saleId) || {brand:'', model:'?'};
-      return `<tr><td>${fmtDate(r.date)}</td><td>${name(s)}</td><td class="n">${r.qty}</td><td class="n">${money(r.refund)}</td>
+      return `<tr><td>${fmtDate(r.date)}</td><td>${wn(s)}</td><td class="n">${r.qty}</td><td class="n">${money(r.refund)}</td>
       <td>${r.qty ? (r.restock ? 'Yes' : '<span class="bad">No (loss)</span>') : '–'}</td><td class="muted">${esc(r.note)}</td>
       <td class="n act"><button class="x del" data-act="del" data-type="return" data-id="${r.id}" title="Delete">🗑️<span class="long"> Delete</span></button></td></tr>`; }).join('')}</table></div>`
     : '<div class="empty">No returns yet. To record one, press “↩ Return” next to the sale above.</div>'}
@@ -450,13 +487,57 @@ function updateSalePreview(){
   const o = sel.selectedOptions[0]; if (!o) return;
   const cost = +o.dataset.cost, max = +o.dataset.qty, q = +$('#saleQty').value || 0, p = +$('#salePrice').value;
   $('#saleQty').max = max;
-  let t = `You paid about <b>${money(cost)}</b> per watch.`;
+  let t = (db.photos[sel.value] ? `<img class="th" src="${esc(db.photos[sel.value])}" alt="" data-act="zoom" style="vertical-align:middle;margin-right:8px">` : '') + `You paid about <b>${money(cost)}</b> per watch.`;
   if ($('#salePrice').value !== '' && q > 0){
     const pr = (p - cost) * q;
     t += ` Profit on this sale: <b class="${pr>=0?'good':'bad'}">${money(pr)}</b>${p ? ' (' + pct((p-cost)/p*100) + ' margin)' : ''}.`;
   }
   out.innerHTML = t;
 }
+
+function updatePhotoPrev(){
+  const el = $('#photoPrev'); if (!el) return;
+  const f = el.closest('form'), src = ui.photo || db.photos[mkey(f.elements.brand.value, f.elements.model.value)];
+  el.innerHTML = src ? `<img class="th" src="${esc(src)}" alt="" data-act="zoom">` +
+    (ui.photo ? '' : '<button type="button" class="x del" data-act="rmPhoto" title="Remove photo">🗑️</button>') : '';
+}
+/* suggestions under the Brand and Model fields */
+function comboItems(inp){
+  const q = inp.value.trim().toLowerCase();
+  if (inp.name === 'brand'){
+    const seen = new Map();
+    for (const p of db.purchases) if (p.brand && !seen.has(p.brand.toLowerCase())) seen.set(p.brand.toLowerCase(), p.brand);
+    return [...seen.values()].filter(b => b.toLowerCase().includes(q)).sort((a,b) => a.localeCompare(b)).map(b => ({html: `<span>${esc(b)}</span>`, brand: b}));
+  }
+  const b = inp.form.elements.brand.value.trim().toLowerCase();
+  const known = db.purchases.some(p => p.brand.toLowerCase() === b);
+  return stock().filter(x => (!b || !known || x.brand.toLowerCase() === b) && x.model.toLowerCase().includes(q))
+    .map(x => ({html: `${thumb(x, false)}<span>${name(x)}</span><small>${x.qty} in stock</small>`, brand: x.brand, model: x.model}));
+}
+function hideCombo(){ document.querySelectorAll('.combo').forEach(c => c.remove()); }
+function showCombo(inp){
+  hideCombo();
+  const items = comboItems(inp); if (!items.length) return;
+  const box = document.createElement('div'); box.className = 'combo';
+  if (inp.getBoundingClientRect().left > innerWidth / 2){ box.style.left = 'auto'; box.style.right = '0'; }
+  box.innerHTML = items.map((it,i) => `<div data-i="${i}">${it.html}</div>`).join('');
+  box.addEventListener('click', e => {
+    const row = e.target.closest('[data-i]'); if (!row) return;
+    e.preventDefault();
+    const it = items[+row.dataset.i], f = inp.form;
+    hideCombo();
+    f.elements.brand.value = it.brand;
+    if (it.model !== undefined){ f.elements.model.value = it.model; f.elements.qty.focus(); }
+    else f.elements.model.focus();
+    updatePhotoPrev();
+  });
+  inp.closest('label').appendChild(box);
+}
+document.addEventListener('focusin', e => { if (e.target.matches && e.target.matches('[data-combo]')) showCombo(e.target); });
+document.addEventListener('focusout', e => {
+  if (e.target.matches && e.target.matches('[data-combo]'))
+    setTimeout(() => document.querySelectorAll('.combo').forEach(c => { if (!c.parentElement.contains(document.activeElement)) c.remove(); }), 250);
+});
 
 function vExpenses(){
   const ed = ui.edit && ui.edit.type === 'expense' ? db.expenses.find(e => e.id === ui.edit.id) : null;
@@ -545,11 +626,21 @@ function exportCsv(kind){
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const {act, v, type, id} = b.dataset;
-  if (act === 'tab'){ ui.tab = v; ui.edit = null; ui.q = ''; render(); window.scrollTo(0,0); }
+  if (act === 'tab'){ ui.tab = v; ui.edit = null; ui.photo = null; ui.q = ''; render(); window.scrollTo(0,0); }
   else if (act === 'range'){ ui.range = +v; render(); }
-  else if (act === 'cancel'){ ui.edit = null; render(); }
+  else if (act === 'cancel'){ ui.edit = null; ui.photo = null; render(); }
+  else if (act === 'zoom'){
+    e.preventDefault();
+    const z = document.createElement('div'); z.id = 'zoom'; z.innerHTML = `<img src="${esc(b.getAttribute('src'))}" alt="">`;
+    z.onclick = () => z.remove(); document.body.appendChild(z);
+  }
+  else if (act === 'rmPhoto'){
+    const f = b.closest('form'), k = mkey(f.elements.brand.value, f.elements.model.value);
+    if (!confirm('Remove the photo of this model?')) return;
+    delete db.photos[k]; save(); updatePhotoPrev();
+  }
   else if (act === 'goalEdit'){ ui.goalEdit = !ui.goalEdit; render(); }
-  else if (act === 'edit'){ ui.edit = {type, id}; render(); window.scrollTo({top:0, behavior:'smooth'}); }
+  else if (act === 'edit'){ ui.photo = null; ui.edit = {type, id}; render(); window.scrollTo({top:0, behavior:'smooth'}); }
   else if (act === 'del'){
     if (type === 'purchase'){
       if (db.sales.some(s => s.allocs.some(a => a.lotId === id))) return alert('Some watches from this purchase were already sold. Delete those sales first.');
@@ -600,8 +691,11 @@ document.addEventListener('submit', e => {
       if (sold && mkey(rec.brand, rec.model) !== mkey(p.brand, p.model)){
         for (const s of db.sales) if (s.allocs.some(a => a.lotId === editing) && s.allocs.every(a => a.lotId === editing)){ s.brand = rec.brand; s.model = rec.model; }
       }
+      const oldKey = mkey(p.brand, p.model), newKey = mkey(rec.brand, rec.model);
+      if (oldKey !== newKey && db.photos[oldKey] && !db.photos[newKey]) db.photos[newKey] = db.photos[oldKey];
       Object.assign(p, rec);
     } else db.purchases.push({id:uid(), ...rec});
+    if (ui.photo) db.photos[mkey(rec.brand, rec.model)] = ui.photo;
   }
   else if (kind === 'sale'){
     if (editing){
@@ -645,7 +739,7 @@ document.addEventListener('submit', e => {
     db.settings.currency = d.currency || 'DA'; db.settings.currencySet = true; db.settings.lowStock = Math.max(0, Math.floor(+d.lowStock) || 0);
     db.settings.monthlyGoal = Math.max(0, +d.monthlyGoal || 0);
   }
-  ui.edit = null; save(); render();
+  ui.edit = null; ui.photo = null; save(); render();
 });
 
 document.addEventListener('input', e => {
@@ -653,10 +747,15 @@ document.addEventListener('input', e => {
     ui.q = e.target.value; const pos = e.target.selectionStart; render();
     const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos);
   } else if (['saleKey','saleQty','salePrice'].includes(e.target.id)) updateSalePreview();
+  else if (e.target.matches('[data-combo]')){ showCombo(e.target); updatePhotoPrev(); }
   else if (e.target.id === 'retQty'){ const r = $('#retRefund'); r.value = (+e.target.value || 0) * +r.dataset.unit || ''; }
 });
 
 document.addEventListener('change', e => {
+  if (e.target.id === 'photoFile' && e.target.files[0]){
+    shrink(e.target.files[0]).then(u => { ui.photo = u; updatePhotoPrev(); }).catch(() => alert('Could not read this picture. Try another one.'));
+    return;
+  }
   if (e.target.id !== 'restoreFile' || !e.target.files[0]) return;
   const r = new FileReader();
   r.onload = () => {
